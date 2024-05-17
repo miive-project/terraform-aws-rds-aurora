@@ -146,6 +146,7 @@ resource "aws_rds_cluster" "this" {
       replication_source_identifier,
       # See docs here https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/rds_global_cluster#new-global-cluster-from-existing-db-cluster
       global_cluster_identifier,
+      master_password, // miive mod by ynary
       snapshot_identifier,
     ]
   }
@@ -188,6 +189,9 @@ resource "aws_rds_cluster_instance" "this" {
     create = try(var.instance_timeouts.create, null)
     update = try(var.instance_timeouts.update, null)
     delete = try(var.instance_timeouts.delete, null)
+  }
+  lifecycle {
+    prevent_destroy = true // miive mod by ynary
   }
 }
 
@@ -329,6 +333,7 @@ resource "aws_security_group" "this" {
 
   lifecycle {
     create_before_destroy = true
+    prevent_destroy       = true // miive mod by ynary
   }
 }
 
@@ -348,6 +353,9 @@ resource "aws_security_group_rule" "this" {
   ipv6_cidr_blocks         = try(each.value.ipv6_cidr_blocks, null)
   prefix_list_ids          = try(each.value.prefix_list_ids, null)
   source_security_group_id = try(each.value.source_security_group_id, null)
+  lifecycle {
+    prevent_destroy = true // miive mod by ynary
+  }
 }
 
 ################################################################################
