@@ -147,6 +147,7 @@ resource "aws_rds_cluster" "this" {
       # See docs here https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/rds_global_cluster#new-global-cluster-from-existing-db-cluster
       global_cluster_identifier,
       snapshot_identifier,
+      final_snapshot_identifier
     ]
   }
 
