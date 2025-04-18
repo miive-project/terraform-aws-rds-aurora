@@ -90,15 +90,57 @@ variable "backtrack_window" {
   default     = null
 }
 
+variable "cluster_ca_cert_identifier" {
+  description = "The CA certificate identifier to use for the DB cluster's server certificate. Currently only supported for multi-az DB clusters"
+  type        = string
+  default     = null
+}
+
 variable "cluster_members" {
   description = "List of RDS Instances that are a part of this cluster"
   type        = list(string)
   default     = null
 }
 
+variable "cluster_scalability_type" {
+  description = "Specifies the scalability mode of the Aurora DB cluster. When set to limitless, the cluster operates as an Aurora Limitless Database. When set to standard (the default), the cluster uses normal DB instance creation. Valid values: limitless, standard"
+  type        = string
+  default     = null
+}
+
+variable "cluster_performance_insights_enabled" {
+  description = "Enables Performance Insights for the RDS Cluster"
+  type        = bool
+  default     = null
+}
+
+variable "cluster_performance_insights_kms_key_id" {
+  description = "Specifies the KMS Key ID to encrypt Performance Insights data. If not specified, the default RDS KMS key will be used (aws/rds)"
+  type        = string
+  default     = null
+}
+
+variable "cluster_performance_insights_retention_period" {
+  description = "Specifies the amount of time to retain performance insights data for. Defaults to 7 days if Performance Insights are enabled. Valid values are 7, month * 31 (where month is a number of months from 1-23), and 731"
+  type        = number
+  default     = null
+}
+
+variable "cluster_monitoring_interval" {
+  description = "Interval, in seconds, between points when Enhanced Monitoring metrics are collected for the DB cluster. To turn off collecting Enhanced Monitoring metrics, specify 0. Valid Values: 0, 1, 5, 10, 15, 30, 60"
+  type        = number
+  default     = 0
+}
+
 variable "copy_tags_to_snapshot" {
   description = "Copy all Cluster `tags` to snapshots"
   type        = bool
+  default     = null
+}
+
+variable "database_insights_mode" {
+  description = "The mode of Database Insights to enable for the DB cluster. Valid values: standard, advanced"
+  type        = string
   default     = null
 }
 
@@ -170,6 +212,12 @@ variable "engine_mode" {
 
 variable "engine_version" {
   description = "The database engine version. Updating this argument results in an outage"
+  type        = string
+  default     = null
+}
+
+variable "engine_lifecycle_support" {
+  description = "The life cycle type for this DB instance. This setting is valid for cluster types Aurora DB clusters and Multi-AZ DB clusters. Valid values are `open-source-rds-extended-support`, `open-source-rds-extended-support-disabled`. Default value is `open-source-rds-extended-support`."
   type        = string
   default     = null
 }
@@ -708,6 +756,24 @@ variable "cloudwatch_log_group_kms_key_id" {
   default     = null
 }
 
+variable "cloudwatch_log_group_skip_destroy" {
+  description = "Set to true if you do not wish the log group (and any logs it may contain) to be deleted at destroy time, and instead just remove the log group from the Terraform state"
+  type        = bool
+  default     = null
+}
+
+variable "cloudwatch_log_group_class" {
+  description = "Specified the log class of the log group. Possible values are: STANDARD or INFREQUENT_ACCESS"
+  type        = string
+  default     = null
+}
+
+variable "cloudwatch_log_group_tags" {
+  description = "Additional tags for the CloudWatch log group(s)"
+  type        = map(string)
+  default     = {}
+}
+
 ################################################################################
 # Cluster Activity Stream
 ################################################################################
@@ -741,7 +807,7 @@ variable "engine_native_audit_fields_included" {
 ################################################################################
 
 variable "manage_master_user_password_rotation" {
-  description = "Whether to manage the master user password rotation. Setting this value to false after previously having been set to true will disable automatic rotation."
+  description = "Whether to manage the master user password rotation. By default, false on creation, rotation is managed by RDS. There is not currently a way to disable this on initial creation even when set to false. Setting this value to false after previously having been set to true will disable automatic rotation."
   type        = bool
   default     = false
 }
@@ -768,4 +834,50 @@ variable "master_user_password_rotation_schedule_expression" {
   description = "A cron() or rate() expression that defines the schedule for rotating your secret. Either `master_user_password_rotation_automatically_after_days` or `master_user_password_rotation_schedule_expression` must be specified"
   type        = string
   default     = null
+}
+
+################################################################################
+# RDS Shard Group
+################################################################################
+
+variable "create_shard_group" {
+  description = "Whether to create a shard group resource"
+  type        = bool
+  default     = false
+}
+
+variable "compute_redundancy" {
+  description = "Specifies whether to create standby DB shard groups for the DB shard group"
+  type        = number
+  default     = null
+}
+
+variable "db_shard_group_identifier" {
+  description = "The name of the DB shard group"
+  type        = string
+  default     = null
+}
+
+variable "max_acu" {
+  description = "The maximum capacity of the DB shard group in Aurora capacity units (ACUs)"
+  type        = number
+  default     = null
+}
+
+variable "min_acu" {
+  description = "The minimum capacity of the DB shard group in Aurora capacity units (ACUs)"
+  type        = number
+  default     = null
+}
+
+variable "shard_group_tags" {
+  description = "Additional tags for the shard group"
+  type        = map(string)
+  default     = {}
+}
+
+variable "shard_group_timeouts" {
+  description = "Create, update, and delete timeout configurations for the shard group"
+  type        = map(string)
+  default     = {}
 }

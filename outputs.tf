@@ -79,6 +79,16 @@ output "cluster_hosted_zone_id" {
   value       = try(aws_rds_cluster.this[0].hosted_zone_id, null)
 }
 
+output "cluster_ca_certificate_identifier" {
+  description = "CA identifier of the CA certificate used for the DB instance's server certificate"
+  value       = try(aws_rds_cluster.this[0].ca_certificate_identifier, null)
+}
+
+output "cluster_ca_certificate_valid_till" {
+  description = "Expiration date of the DB instance’s server certificate"
+  value       = try(aws_rds_cluster.this[0].ca_certificate_valid_till, null)
+}
+
 ################################################################################
 # Cluster Instance(s)
 ################################################################################
@@ -187,4 +197,23 @@ output "db_cluster_activity_stream_kinesis_stream_name" {
 output "db_cluster_secretsmanager_secret_rotation_enabled" {
   description = "Specifies whether automatic rotation is enabled for the secret"
   value       = try(aws_secretsmanager_secret_rotation.this[0].rotation_enabled, null)
+}
+
+################################################################################
+# RDS Shard Group
+################################################################################
+
+output "db_shard_group_arn" {
+  description = "ARN of the shard group"
+  value       = try(aws_rds_shard_group.this[0].arn, null)
+}
+
+output "db_shard_group_resource_id" {
+  description = "The AWS Region-unique, immutable identifier for the DB shard group"
+  value       = try(aws_rds_shard_group.this[0].db_shard_group_resource_id, null)
+}
+
+output "db_shard_group_endpoint" {
+  description = "The connection endpoint for the DB shard group"
+  value       = try(aws_rds_shard_group.this[0].endpoint, null)
 }

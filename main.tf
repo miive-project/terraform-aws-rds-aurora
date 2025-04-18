@@ -45,10 +45,13 @@ resource "aws_rds_cluster" "this" {
   availability_zones                  = var.availability_zones
   backup_retention_period             = var.backup_retention_period
   backtrack_window                    = local.backtrack_window
+  ca_certificate_identifier           = var.cluster_ca_cert_identifier
   cluster_identifier                  = var.cluster_use_name_prefix ? null : var.name
   cluster_identifier_prefix           = var.cluster_use_name_prefix ? "${var.name}-" : null
   cluster_members                     = var.cluster_members
+  cluster_scalability_type            = var.cluster_scalability_type
   copy_tags_to_snapshot               = var.copy_tags_to_snapshot
+  database_insights_mode              = var.database_insights_mode
   database_name                       = var.is_primary_cluster ? var.database_name : null
   db_cluster_instance_class           = var.db_cluster_instance_class
   db_cluster_parameter_group_name     = var.create_db_cluster_parameter_group ? aws_rds_cluster_parameter_group.this[0].id : var.db_cluster_parameter_group_name
@@ -61,25 +64,31 @@ resource "aws_rds_cluster" "this" {
   enabled_cloudwatch_logs_exports     = var.enabled_cloudwatch_logs_exports
   enable_http_endpoint                = var.enable_http_endpoint
   engine                              = var.engine
-  engine_mode                         = var.engine_mode
+  engine_mode                         = var.cluster_scalability_type == "limitless" ? "" : var.engine_mode
   engine_version                      = var.engine_version
+  engine_lifecycle_support            = var.engine_lifecycle_support
   final_snapshot_identifier           = var.final_snapshot_identifier
   global_cluster_identifier           = var.global_cluster_identifier
   domain                              = var.domain
   domain_iam_role_name                = var.domain_iam_role_name
   iam_database_authentication_enabled = var.iam_database_authentication_enabled
   # iam_roles has been removed from this resource and instead will be used with aws_rds_cluster_role_association below to avoid conflicts per docs
-  iops                          = var.iops
-  kms_key_id                    = var.kms_key_id
-  manage_master_user_password   = var.global_cluster_identifier == null && var.manage_master_user_password ? var.manage_master_user_password : null
-  master_user_secret_kms_key_id = var.global_cluster_identifier == null && var.manage_master_user_password ? var.master_user_secret_kms_key_id : null
-  master_password               = var.is_primary_cluster && !var.manage_master_user_password ? var.master_password : null
-  master_username               = var.is_primary_cluster ? var.master_username : null
-  network_type                  = var.network_type
-  port                          = local.port
-  preferred_backup_window       = local.is_serverless ? null : var.preferred_backup_window
-  preferred_maintenance_window  = var.preferred_maintenance_window
-  replication_source_identifier = var.replication_source_identifier
+  iops                                  = var.iops
+  kms_key_id                            = var.kms_key_id
+  manage_master_user_password           = var.global_cluster_identifier == null && var.manage_master_user_password ? var.manage_master_user_password : null
+  master_user_secret_kms_key_id         = var.global_cluster_identifier == null && var.manage_master_user_password ? var.master_user_secret_kms_key_id : null
+  master_password                       = var.is_primary_cluster && !var.manage_master_user_password ? var.master_password : null
+  master_username                       = var.is_primary_cluster ? var.master_username : null
+  monitoring_interval                   = var.cluster_monitoring_interval
+  monitoring_role_arn                   = var.create_monitoring_role && var.cluster_monitoring_interval > 0 ? try(aws_iam_role.rds_enhanced_monitoring[0].arn, null) : var.monitoring_role_arn
+  network_type                          = var.network_type
+  performance_insights_enabled          = var.cluster_performance_insights_enabled
+  performance_insights_kms_key_id       = var.cluster_performance_insights_kms_key_id
+  performance_insights_retention_period = var.cluster_performance_insights_retention_period
+  port                                  = local.port
+  preferred_backup_window               = local.is_serverless ? null : var.preferred_backup_window
+  preferred_maintenance_window          = var.preferred_maintenance_window
+  replication_source_identifier         = var.replication_source_identifier
 
   dynamic "restore_to_point_in_time" {
     for_each = length(var.restore_to_point_in_time) > 0 ? [var.restore_to_point_in_time] : []
@@ -87,7 +96,8 @@ resource "aws_rds_cluster" "this" {
     content {
       restore_to_time            = try(restore_to_point_in_time.value.restore_to_time, null)
       restore_type               = try(restore_to_point_in_time.value.restore_type, null)
-      source_cluster_identifier  = restore_to_point_in_time.value.source_cluster_identifier
+      source_cluster_identifier  = try(restore_to_point_in_time.value.source_cluster_identifier, null)
+      source_cluster_resource_id = try(restore_to_point_in_time.value.source_cluster_resource_id, null)
       use_latest_restorable_time = try(restore_to_point_in_time.value.use_latest_restorable_time, null)
     }
   }
@@ -112,6 +122,7 @@ resource "aws_rds_cluster" "this" {
       max_capacity             = try(scaling_configuration.value.max_capacity, null)
       min_capacity             = try(scaling_configuration.value.min_capacity, null)
       seconds_until_auto_pause = try(scaling_configuration.value.seconds_until_auto_pause, null)
+      seconds_before_timeout   = try(scaling_configuration.value.seconds_before_timeout, null)
       timeout_action           = try(scaling_configuration.value.timeout_action, null)
     }
   }
@@ -120,8 +131,9 @@ resource "aws_rds_cluster" "this" {
     for_each = length(var.serverlessv2_scaling_configuration) > 0 && var.engine_mode == "provisioned" ? [var.serverlessv2_scaling_configuration] : []
 
     content {
-      max_capacity = serverlessv2_scaling_configuration.value.max_capacity
-      min_capacity = serverlessv2_scaling_configuration.value.min_capacity
+      max_capacity             = serverlessv2_scaling_configuration.value.max_capacity
+      min_capacity             = serverlessv2_scaling_configuration.value.min_capacity
+      seconds_until_auto_pause = try(serverlessv2_scaling_configuration.value.seconds_until_auto_pause, null)
     }
   }
 
@@ -174,7 +186,7 @@ resource "aws_rds_cluster_instance" "this" {
   identifier                            = var.instances_use_identifier_prefix ? null : try(each.value.identifier, "${var.name}-${each.key}")
   identifier_prefix                     = var.instances_use_identifier_prefix ? try(each.value.identifier_prefix, "${var.name}-${each.key}-") : null
   instance_class                        = try(each.value.instance_class, var.instance_class)
-  monitoring_interval                   = try(each.value.monitoring_interval, var.monitoring_interval)
+  monitoring_interval                   = var.cluster_monitoring_interval > 0 ? var.cluster_monitoring_interval : try(each.value.monitoring_interval, var.monitoring_interval)
   monitoring_role_arn                   = var.create_monitoring_role ? try(aws_iam_role.rds_enhanced_monitoring[0].arn, null) : var.monitoring_role_arn
   performance_insights_enabled          = try(each.value.performance_insights_enabled, var.performance_insights_enabled)
   performance_insights_kms_key_id       = try(each.value.performance_insights_kms_key_id, var.performance_insights_kms_key_id)
@@ -228,7 +240,7 @@ resource "aws_rds_cluster_role_association" "this" {
 ################################################################################
 
 locals {
-  create_monitoring_role = local.create && var.create_monitoring_role && var.monitoring_interval > 0
+  create_monitoring_role = local.create && var.create_monitoring_role && (var.monitoring_interval > 0 || var.cluster_monitoring_interval > 0)
 }
 
 data "aws_iam_policy_document" "monitoring_rds_assume_role" {
@@ -349,6 +361,7 @@ resource "aws_security_group_rule" "this" {
   ipv6_cidr_blocks         = try(each.value.ipv6_cidr_blocks, null)
   prefix_list_ids          = try(each.value.prefix_list_ids, null)
   source_security_group_id = try(each.value.source_security_group_id, null)
+  self                     = try(each.value.self, null)
 }
 
 ################################################################################
@@ -420,8 +433,10 @@ resource "aws_cloudwatch_log_group" "this" {
   name              = "/aws/rds/cluster/${var.name}/${each.value}"
   retention_in_days = var.cloudwatch_log_group_retention_in_days
   kms_key_id        = var.cloudwatch_log_group_kms_key_id
+  skip_destroy      = var.cloudwatch_log_group_skip_destroy
+  log_group_class   = var.cloudwatch_log_group_class
 
-  tags = var.tags
+  tags = merge(var.tags, var.cloudwatch_log_group_tags)
 }
 
 ################################################################################
@@ -443,6 +458,12 @@ resource "aws_rds_cluster_activity_stream" "this" {
 # Managed Secret Rotation
 ################################################################################
 
+# There is not currently a way to disable secret rotation on an initial apply.
+# In order to use master password secrets management without a rotation, the following workaround can be used:
+# `manage_master_user_password_rotation` must be set to true first and applied followed by setting it to false and another apply.
+# Note: when setting `manage_master_user_password_rotation` to true, a schedule must also be set using `master_user_password_rotation_schedule_expression` or `master_user_password_rotation_automatically_after_days`.
+# To prevent password from being immediately rotated when implementing this workaround, set `master_user_password_rotate_immediately` to false.
+# See: https://github.com/hashicorp/terraform-provider-aws/issues/37779
 resource "aws_secretsmanager_secret_rotation" "this" {
   count = local.create && var.manage_master_user_password && var.manage_master_user_password_rotation ? 1 : 0
 
@@ -453,5 +474,27 @@ resource "aws_secretsmanager_secret_rotation" "this" {
     automatically_after_days = var.master_user_password_rotation_automatically_after_days
     duration                 = var.master_user_password_rotation_duration
     schedule_expression      = var.master_user_password_rotation_schedule_expression
+  }
+}
+
+################################################################################
+# RDS Shard Group
+################################################################################
+
+resource "aws_rds_shard_group" "this" {
+  count = local.create && var.create_shard_group ? 1 : 0
+
+  compute_redundancy        = var.compute_redundancy
+  db_cluster_identifier     = aws_rds_cluster.this[0].id
+  db_shard_group_identifier = var.db_shard_group_identifier
+  max_acu                   = var.max_acu
+  min_acu                   = var.min_acu
+  publicly_accessible       = var.publicly_accessible
+  tags                      = merge(var.tags, var.shard_group_tags)
+
+  timeouts {
+    create = try(var.shard_group_timeouts.create, null)
+    update = try(var.shard_group_timeouts.update, null)
+    delete = try(var.shard_group_timeouts.delete, null)
   }
 }

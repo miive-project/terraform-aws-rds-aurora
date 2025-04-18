@@ -25,11 +25,13 @@ locals {
 module "aurora" {
   source = "../../"
 
-  name            = local.name
-  engine          = "aurora-postgresql"
-  engine_version  = "14.7"
-  master_username = "root"
-  storage_type    = "aurora-iopt1"
+  name                        = local.name
+  engine                      = "aurora-postgresql"
+  engine_version              = "14.13"
+  master_username             = "root"
+  storage_type                = "aurora-iopt1"
+  cluster_monitoring_interval = 30
+
   instances = {
     1 = {
       instance_class          = "db.r5.2xlarge"
@@ -69,6 +71,7 @@ module "aurora" {
       cidr_blocks = module.vpc.private_subnets_cidr_blocks
     }
     egress_example = {
+      type        = "egress"
       cidr_blocks = ["10.33.0.0/28"]
       description = "Egress to corporate printer closet"
     }
@@ -76,6 +79,8 @@ module "aurora" {
 
   apply_immediately   = true
   skip_final_snapshot = true
+
+  engine_lifecycle_support = "open-source-rds-extended-support-disabled"
 
   create_db_cluster_parameter_group      = true
   db_cluster_parameter_group_name        = local.name
@@ -107,6 +112,10 @@ module "aurora" {
 
   enabled_cloudwatch_logs_exports = ["postgresql"]
   create_cloudwatch_log_group     = true
+
+  cloudwatch_log_group_tags = {
+    Sensitivity = "high"
+  }
 
   create_db_cluster_activity_stream     = true
   db_cluster_activity_stream_kms_key_id = module.kms.key_id
